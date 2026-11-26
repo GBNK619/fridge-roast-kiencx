@@ -5,7 +5,7 @@
 // Writes the one-line roast to $MAKEFUN_OUTPUT_DIR/entry.txt
 // (falls back to ./output/entry.txt when the env var is unset).
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const LINE =
@@ -15,8 +15,22 @@ function main(): void {
   const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? join(process.cwd(), "output");
   mkdirSync(outDir, { recursive: true });
   const outPath = join(outDir, "entry.txt");
-  writeFileSync(outPath, LINE + "\n", "utf8");
-  console.log(`wrote ${outPath}`);
+  const expected = LINE + "\n";
+  writeFileSync(outPath, expected, "utf8");
+
+  // Read-back validation: the file on disk must equal the line exactly,
+  // byte for byte. Exit non-zero on any mismatch so a bad write can
+  // never pass silently.
+  const actual = readFileSync(outPath, "utf8");
+  if (actual !== expected) {
+    console.error(
+      `validation failed: entry.txt content does not match the line exactly\n` +
+        `  expected: ${JSON.stringify(expected)}\n` +
+        `  actual:   ${JSON.stringify(actual)}`,
+    );
+    process.exit(1);
+  }
+  console.log(`wrote ${outPath} (validated, ${Buffer.byteLength(actual, "utf8")} bytes)`);
 }
 
 main();
